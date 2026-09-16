@@ -51,6 +51,25 @@ export async function GET() { const user = await requireUser(); return Response.
     expect(checkRouteHandlers(src)[0]).toMatchObject({ handler: "DELETE", ok: false });
   });
 
+  it("accepts destructuring and a bare (non-awaited) direct call", () => {
+    expect(checkRouteHandlers(`export async function GET() { const { id } = await requireUser(); return ok(id); }`)[0]).toMatchObject({ ok: true });
+    expect(checkRouteHandlers(`export function GET() { requireUser(); return ok(); }`)[0]).toMatchObject({ ok: true });
+  });
+
+  it("rejects requireUser() nested in a conditional, callback, wrapper, array, or try block", () => {
+    const shapes = [
+      `export async function GET() { if (isAuthenticated) await requireUser(); await db.insert(rows); }`,
+      `export async function GET() { const getUser = () => requireUser(); await db.insert(rows); }`,
+      `export async function GET() { await withRetry(() => requireUser()); await db.insert(rows); }`,
+      `export async function GET() { await Promise.all([requireUser()]); await db.insert(rows); }`,
+      `export async function GET() { try { await requireUser(); } catch { /* swallowed */ } await db.insert(rows); }`,
+      `export async function GET() { const user = cond ? await requireUser() : null; await db.insert(rows); }`,
+    ];
+    for (const src of shapes) {
+      expect(checkRouteHandlers(src)[0], src).toMatchObject({ handler: "GET", ok: false });
+    }
+  });
+
   it("rejects expression-bodied and wrapped handlers, which it cannot verify", () => {
     expect(checkRouteHandlers(`export const GET = () => Response.json({});`)[0]).toMatchObject({ ok: false });
     expect(checkRouteHandlers(`export const GET = withSomething(async () => {});`)[0]).toMatchObject({ ok: false });

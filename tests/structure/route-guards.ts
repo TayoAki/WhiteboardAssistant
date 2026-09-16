@@ -4,10 +4,11 @@ import ts from "typescript";
  * Structural checks used by tests/structure/entry-points.test.ts.
  *
  * They are intentionally conservative: a route handler passes only when its
- * body's FIRST statement calls `requireUser()`. Anything that runs before it
- * (a database call, a fetch, a response) is a guardrail violation, because the
- * canonical path in docs/architecture/GUARDRAIL_MAP.md starts with the verified
- * principal.
+ * body's FIRST statement is a direct, unconditional `requireUser()` call.
+ * Anything that runs before it (a database call, a fetch, a response) or any
+ * form that might not execute it (a conditional, a callback, a wrapper) is a
+ * guardrail violation, because the canonical path in
+ * docs/architecture/GUARDRAIL_MAP.md starts with the verified principal.
  */
 
 export const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
@@ -26,18 +27,36 @@ function hasExportModifier(node: ts.Node): boolean {
     : false;
 }
 
-function containsCallTo(node: ts.Node, calleeName: string): boolean {
-  let found = false;
-  const visit = (n: ts.Node) => {
-    if (found) return;
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === calleeName) {
-      found = true;
-      return;
-    }
-    ts.forEachChild(n, visit);
-  };
-  visit(node);
-  return found;
+/** Strips `await`, parentheses, and type assertions so the underlying expression can be inspected. */
+function unwrap(expr: ts.Expression): ts.Expression {
+  let e = expr;
+  for (;;) {
+    if (ts.isParenthesizedExpression(e) || ts.isAwaitExpression(e)) e = e.expression;
+    else if (ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isNonNullExpression(e)) e = e.expression;
+    else if (ts.isTypeAssertionExpression(e)) e = e.expression;
+    else return e;
+  }
+}
+
+/** True only for a direct `requireUser(...)` call (optionally awaited), never one nested in another expression. */
+function isDirectRequireUserCall(expr: ts.Expression): boolean {
+  const e = unwrap(expr);
+  return ts.isCallExpression(e) && ts.isIdentifier(e.expression) && e.expression.text === "requireUser";
+}
+
+/**
+ * Accepts exactly two first-statement shapes, both of which execute unconditionally:
+ *   `await requireUser();`  or  `const user = await requireUser();` (destructuring allowed).
+ * A call nested in a conditional, callback, function definition, array, or another call
+ * is rejected, because it is not guaranteed to run before the rest of the handler.
+ */
+function firstStatementCallsRequireUserDirectly(first: ts.Statement): boolean {
+  if (ts.isExpressionStatement(first)) return isDirectRequireUserCall(first.expression);
+  if (ts.isVariableStatement(first)) {
+    const [decl] = first.declarationList.declarations;
+    return decl?.initializer !== undefined && isDirectRequireUserCall(decl.initializer);
+  }
+  return false;
 }
 
 function checkBody(handler: string, body: ts.ConciseBody | undefined): HandlerFinding {
@@ -46,8 +65,14 @@ function checkBody(handler: string, body: ts.ConciseBody | undefined): HandlerFi
   }
   const first = body.statements[0];
   if (!first) return { handler, ok: false, reason: "handler body is empty" };
-  if (containsCallTo(first, "requireUser")) return { handler, ok: true, reason: "requireUser() is the first statement" };
-  return { handler, ok: false, reason: `first statement does not call requireUser(): ${first.getText().slice(0, 80)}` };
+  if (firstStatementCallsRequireUserDirectly(first)) {
+    return { handler, ok: true, reason: "requireUser() is called directly by the first statement" };
+  }
+  return {
+    handler,
+    ok: false,
+    reason: `first statement is not a direct requireUser() call: ${first.getText().slice(0, 80)}`,
+  };
 }
 
 /**
