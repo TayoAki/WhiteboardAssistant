@@ -1,8 +1,8 @@
 # WhiteboardAssistant — Build Plan
 
-**Revision:** 2 (2026-09-16) · **Status:** planning, no code yet · **Companion documents:** `docs/prds/0001-ai-whiteboard-mvp.md` (requirements, acceptance criteria, slices, decisions), `docs/architecture/GUARDRAIL_MAP.md` (enforcement design), `AGENTS.md` (operating contract)
+**Revision:** 3 (2026-09-16) · **Status:** PRD approved, no code yet · **Companion documents:** `docs/prds/0001-ai-whiteboard-mvp.md` (requirements, acceptance criteria, slices, decisions), `docs/architecture/GUARDRAIL_MAP.md` (enforcement design), `AGENTS.md` (operating contract)
 
-Revision 2 applies two checked-in skills (`.claude/skills/software-factory`, `.claude/skills/architectural-guardrails`): the feature list became a factory-ready PRD with stable IDs and evidence, the security prose became an enforceable guardrail spine, and delivery now follows a PRD → isolated branch → evidence → PR → bounded review → human merge pipeline.
+Revision 3 records the owner's approval of the PRD and the decisions: hosting on Railway, no billing, personal-tool phase first. Revision 2 applied two checked-in skills (`.claude/skills/software-factory`, `.claude/skills/architectural-guardrails`): the feature list became a factory-ready PRD with stable IDs and evidence, the security prose became an enforceable guardrail spine, and delivery now follows a PRD → isolated branch → evidence → PR → bounded review → human merge pipeline.
 
 ---
 
@@ -14,7 +14,7 @@ Revision 2 applies two checked-in skills (`.claude/skills/software-factory`, `.c
 - **Model:** Claude Opus 5 via CopilotKit's `BuiltInAgent` (`anthropic/claude-opus-5`); one-string swap to OpenAI/Google (D-004).
 - **Canvas:** Excalidraw 0.18.1 (MIT). tldraw rejected: its license forbids production use without a commercial agreement.
 - **FluidVoice:** macOS-only Swift dictation app (GPLv3) with no public API; works day one as OS-level dictation into the chat box; deeper integration in S-8 (§9).
-- **Readiness:** PRD revision 1 is `READY WITH ASSUMPTIONS` for S-1 to S-6 and S-8. S-7 waits on hosting (D-002) and billing (D-003). Owner action D-001 (create/protect `main`) comes first.
+- **Readiness:** PRD revision 2 is **approved** (`READY WITH ASSUMPTIONS`, all slices). Owner decisions: hosting = Railway (D-002); no billing/Stripe while the product is a personal tool (D-003); only allowlisted accounts are admitted (A-009). Remaining owner action before any slice PR: D-001 (create and protect `main`).
 
 ---
 
@@ -55,6 +55,7 @@ Backlog from viewer questions: dark theme (FR-027, Could), share links/collabora
 | Model | Claude Opus 5 (`claude-opus-5`) | $5 / $25 per MTok (in/out). |
 | FluidVoice | 1.6.0, macOS 15+, Swift, GPLv3 (since 2026-02-23; earlier Apache 2.0) | `brew install --cask fluidvoice`; §9. |
 | Session tooling (factory preflight) | git, node 22, npm, python3, jq present; `gh` and ffmpeg absent | GitHub via MCP tools; evidence via headless Playwright screenshots + assertion logs. |
+| Hosting | Railway (D-002) | one long-lived Node service; CopilotKit runtime in-process; `InMemoryAgentRunner` accepted for the personal-tool phase (A-010); Railway tooling is attached to this session for S-7. |
 
 ---
 
@@ -130,7 +131,7 @@ audit_events     id bigserial PK · event text · occurred_at · correlation_id 
 - `onConflictDoUpdate` on `whiteboard_data.project_id` (the unique constraint the video had to add after the upsert failed).
 - Credits: `UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits > 0 RETURNING credits` inside the create transaction; the `CHECK` is defense in depth (verify Drizzle `check()` support in the pinned version, else a raw migration).
 - `app_state` is a whitelist (viewBackgroundColor, gridSize, zoom, scroll, theme); never persist the full `AppState`.
-- Chat threads: CopilotKit's `InMemoryAgentRunner` keeps them in process memory; production choice is D-002.
+- Chat threads: CopilotKit's `InMemoryAgentRunner` keeps them in the Railway process; they reset on redeploy, accepted in the personal-tool phase (A-010).
 
 ---
 
@@ -146,6 +147,7 @@ audit_events     id bigserial PK · event text · occurred_at · correlation_id 
 | `/api/copilotkit/[[...slug]]` | runtime | AG-UI sub-routes (`/info`, `/agent/:id/run`, threads) | Clerk auth in the handler hook, run budgets, audit |
 | `POST /api/webhooks/clerk` | webhook | `user.deleted` → scheduled cleanup | Svix signature (explicit exception) |
 | `POST /api/transcribe` (S-8) | route | audio → text | `requireUser()`, size/duration caps |
+| `GET /api/health` | route | Railway health check | public; returns status only (explicit exception) |
 
 The full inventory with coverage status lives in `docs/architecture/GUARDRAIL_MAP.md`.
 
@@ -323,15 +325,15 @@ Each slice = one branch, one PR, CodeRabbit review, human merge. Full requiremen
 | Slice | Branch | Scope | Exit criteria |
 |---|---|---|---|
 | S-1 | `feat/s1-bootstrap` | Scaffold (temp dir → move in), Tailwind/shadcn, TS strict, ESLint layer rules, vitest + Playwright skeleton, CI, `.coderabbit.yaml`, `.env.example`, real commands in `AGENTS.md`, inventory-test skeleton | CI green on a PR; `AGENTS.md` commands verified by running them |
-| S-2 | `feat/s2-auth-db` | Clerk, schema + constraints + migrations, `requireUser()`, scoped repos, audit helper, Clerk webhook, route protection | AC-001, AC-002, AC-009, AC-022 |
+| S-2 | `feat/s2-auth-db` | Clerk, owner allowlist in `requireUser()` (FR-005), schema + constraints + migrations, scoped repos, audit helper, Clerk webhook, route protection | AC-001, AC-002, AC-009, AC-022, AC-031 |
 | S-3 | `feat/s3-boards` | Create (atomic credits, idempotent), list, rename, archive/restore/delete, empty state, meter | AC-003–AC-008 |
 | S-4 | `feat/s4-canvas` | Excalidraw, load/save with caps, previews, toolbar, floating properties, export, inserts, theme | AC-010–AC-014 |
 | S-5 | `feat/s5-copilot-core` | Runtime route + auth hook, provider, sidebar, scene context, basic tools, HITL, suggestions, AI Helper wiring | AC-015, AC-018, AC-019, AC-021, AC-025 |
 | S-6 | `feat/s6-diagram-tools` | Specs, layout, converters, `draw_diagram`, `draw_wireframe`, `add_elements`, placeholder, cards, prompt, 30-prompt eval | AC-016, AC-017, AC-023, AC-024; eval ≥ 90 % |
-| S-7 | `feat/s7-metering-deploy` | Runtime credit/rate enforcement, `ai_usage`, previews → object storage, billing, hosting, staging, observability, bundle secret grep | AC-020, AC-026, AC-029; production URL |
+| S-7 | `feat/s7-metering-deploy` | Runtime credit/rate enforcement, `ai_usage`, Railway service + Neon, deploy on merge to `main`, `GET /api/health`, observability, bundle secret grep (object storage for previews only if needed) | AC-020, AC-026, AC-030; Railway URL |
 | S-8 | `feat/s8-voice` | Dictation-tolerant prompt, push-to-talk + `/api/transcribe`, WebMCP exposure | AC-027, AC-028 |
 
-S-6's pure functions may start during S-4. S-7's task contract waits on D-002 and D-003.
+S-6's pure functions may start during S-4. S-7 is unblocked (D-002/D-003 resolved); creating the Railway service and setting variables are external actions that need explicit authorization when S-7 runs.
 
 ---
 
@@ -357,13 +359,13 @@ Risks with mitigations and owners are in the PRD §15. Decisions the owner must 
 | ID | Decision | Needed by |
 |---|---|---|
 | D-001 | Create `main` from the current commit, make it GitHub's default, protect it | before S-1's PR |
-| D-002 | Hosting: Vercel (needs a persistent thread runner or stateless threads) vs Railway (long-lived Node process; Railway tooling is attached to this session) | before S-7 |
-| D-003 | Billing provider (Clerk Billing vs Stripe) and the credit/pricing model; A-006 (3 boards, 20 AI runs/day) stands until then | before S-7 |
+| D-002 | **Resolved:** Railway (long-lived Node process) | — |
+| D-003 | **Resolved:** no billing, no Stripe; personal tool first. Credits stay as a configurable cost control (A-006) | — |
 | D-004 | Confirm Anthropic Claude Opus 5 (A-002) or choose OpenAI/Google | before S-5 (one-string swap later) |
 | D-005 | Retention after account deletion (proposed 30 days) and full export | before S-2's webhook |
-| D-006 | Confirm teams/sharing/realtime stay out of scope (A-001) | now (reversible) |
+| D-006 | **Resolved by direction:** teams/sharing/realtime out of scope (personal tool) | — |
 
-Defaults taken by assumption (`A-001`–`A-008` in the PRD): tenant = user; Anthropic model; Excalidraw; Clerk + Neon + Drizzle; base64 previews until S-7; free plan 3 boards + 20 AI runs/day; FluidVoice as input device only; harness branch = isolation in web sessions.
+Defaults taken by assumption (`A-001`–`A-010` in the PRD): tenant = user; Anthropic model; Excalidraw; Clerk + Neon + Drizzle; base64 previews; budgets 3 boards + 20 AI runs/day, configurable; FluidVoice as input device only; harness branch = isolation in web sessions; **owner email allowlist while personal (A-009)**; **chat threads reset on redeploy (A-010)**.
 
 Two technical items remain marked "verify": the exact request-hook signature of `createCopilotRuntimeHandler` in 1.72, and whether Excalidraw 0.18.1 ships the `stickynote` skeleton type.
 
@@ -377,8 +379,11 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 CLERK_WEBHOOK_SIGNING_SECRET=
 ANTHROPIC_API_KEY=            # BuiltInAgent reads this for anthropic/* models
+ALLOWED_EMAILS=               # comma-separated; personal-tool admission (FR-005)
+BOARD_CREDITS=3               # A-006
+AI_RUNS_PER_DAY=20            # A-006
 # S-8: transcription provider key
-# S-7: object storage + billing keys
+# S-7: all of the above live in Railway variables; object storage key only if previews move off base64
 ```
 
 ---

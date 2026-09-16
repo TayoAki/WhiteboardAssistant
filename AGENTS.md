@@ -6,12 +6,13 @@ Operating contract for any agent (Claude Code, Codex, Cursor) or human working i
 
 - Greenfield: no application code yet. Only planning documents exist.
 - No install, lint, typecheck, test, or build command exists yet. **Do not claim any command was run until S-1 replaces the "planned" list below with verified commands.**
-- The GitHub default branch is currently the first pushed branch; D-001 in the PRD asks the owner to create and protect `main`.
+- PRD revision 2 is approved by the owner (2026-09-16): hosting on Railway, no billing, personal-tool phase with an owner allowlist. D-005 (retention) is still open but low impact.
+- The GitHub default branch is currently the first pushed branch; D-001 in the PRD asks the owner to create and protect `main`. **No slice may open a PR until `main` exists.**
 
 ## Task contract
 
-- Treat a raw PRD, brief, issue, transcript, or idea as input to refine, not permission to implement. The approved PRD is `docs/prds/0001-ai-whiteboard-mvp.md` (revision 1, approval pending).
-- Work only from a PRD marked `READY` or `READY WITH ASSUMPTIONS`; never from `BLOCKED` scope (S-7 until D-002/D-003 are resolved).
+- Treat a raw PRD, brief, issue, transcript, or idea as input to refine, not permission to implement. The approved PRD is `docs/prds/0001-ai-whiteboard-mvp.md` (revision 2, approved 2026-09-16).
+- Work only from a PRD marked `READY` or `READY WITH ASSUMPTIONS`; never from `BLOCKED` scope (none at revision 2).
 - Every slice, test, commit, and PR references requirement and acceptance IDs (`FR-`, `NFR-`, `AC-`, `S-`).
 - Stop for clarification when interpretations differ on behavior, data, permissions, architecture, cost, schedule, or release risk. Otherwise label the assumption and proceed.
 - Risk classes requiring explicit owner direction: authentication, authorization, billing, personal data, destructive operations, schema or infrastructure changes, production access.
@@ -70,7 +71,7 @@ entry adapter -> requireUser() -> zod parse -> guarded command -> scoped repo ->
 - Branch naming: `feat/s<slice>-<slug>` for slice work, `fix/<slug>` for fixes.
 - Worktrees (local): `.worktrees/<branch>` (gitignored). Single-checkout mode is allowed only in harness-managed sessions that assign a branch in a fresh container.
 - Evidence directory: `.artifacts/<task>/` (gitignored). Approved external evidence host: none; keep evidence in the PR or private.
-- Shared resources: Neon — use a per-developer branch, never the production branch; dev port 3000; Clerk dev instance.
+- Shared resources: Neon — use a per-developer branch, never the production branch; dev port 3000; Clerk dev instance; Railway — creating services, setting variables, or deploying are external actions that need explicit authorization (S-7).
 
 ## Verification and evidence
 

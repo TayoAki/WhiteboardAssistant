@@ -6,7 +6,7 @@
 - Mode: design + PRD hardening (nothing is built yet; every coverage status below is a target, not an observation)
 - Requested outcome: a minimal, enforceable guardrail spine for the MVP in `docs/prds/0001-ai-whiteboard-mvp.md`, adopted slice by slice
 - Mutation authority: none for this document; S-1/S-2 implement the primitives
-- Relevant versions/environment: Next.js App Router (React 19), Clerk, Neon Postgres + Drizzle, CopilotKit 1.72 v2 runtime, Excalidraw 0.18.1
+- Relevant versions/environment: Next.js App Router (React 19), Clerk, Neon Postgres + Drizzle, CopilotKit 1.72 v2 runtime, Excalidraw 0.18.1, Railway (one long-lived Node service; D-002). Personal-tool phase: only allowlisted accounts are admitted (A-009).
 
 ## Non-negotiables applied here
 
@@ -35,7 +35,7 @@ Thin adapters may differ (JSON route vs. AG-UI runtime hook vs. Svix webhook); o
 
 | Concern | Authority/source of truth | Trusted inputs | Untrusted inputs | Enforcement point | Deny/failure behavior |
 |---|---|---|---|---|---|
-| Identity | Clerk session (`auth()` in `src/server/auth`) | server-resolved `userId` | cookies, headers, any client-sent user id | `requireUser()` at every adapter | 401 for API, redirect for pages |
+| Identity | Clerk session (`auth()` in `src/server/auth`) + server-side email allowlist (`ALLOWED_EMAILS`, FR-005) with Clerk sign-up restriction as first layer | server-resolved `userId` and verified email | cookies, headers, any client-sent user id or email | `requireUser()` at every adapter | 401 for API, redirect for pages; authenticated but not allowlisted → 403 / private-instance page, no `users` row, `auth.denied` audit |
 | Tenant/membership | `users` row keyed by `clerk_user_id` (tenant = user, A-001) | `VerifiedUser.id` | client `userId`, email in body | `requireUser()` resolves or creates the row | 401 |
 | Object access | `projects.user_id` | `VerifiedUser` + `project_id` from path/body | any id the client sends | scoped repos (`boards.forUser(user).byId(id)`) | 404, no side effect, audit `denied` |
 | Roles/actions | policy registry (`src/server/policy/registry.ts`: resource/action keys) | command name | — | guarded command | 403 only for future roles; MVP has owner-only |
@@ -59,6 +59,7 @@ Thin adapters may differ (JSON route vs. AG-UI runtime hook vs. Svix webhook); o
 | Agent tool calls (`draw_*`, `update_elements`, …) | LLM → browser handler | user's session (tools run in the user's page) | zod tool schemas + caps; HITL for destructive | canvas mutation → later `PUT /api/whiteboard` | gap → S-5/S-6 | AC-017, AC-018 |
 | `POST /api/webhooks/clerk` | Clerk (Svix) | signature verification (explicit exception to `requireUser`) | `scheduleUserDeletion` | mark user, schedule cleanup | gap → S-2 | webhook replay test |
 | `POST /api/transcribe` | browser | `requireUser()` | `transcribe` (size/duration caps) | provider call, `ai_usage` | gap → S-8 | AC-028 |
+| `GET /api/health` | Railway health check | none (explicit exception) | returns `{ status: "ok" }` only; no DB read of user data | none | gap → S-1 | AC-030 |
 | Direct `db` usage | any server code | — | forbidden outside `src/server/data` (lint) | — | gap → S-1 lint rule | CI lint |
 | Background jobs | none in MVP | — | — | — | n/a | — |
 
@@ -121,7 +122,8 @@ Fields: `event, occurredAt, correlationId, actorId, action, targetType?, targetI
 | `POST /api/webhooks/clerk` has no user session | medium | Svix signature + idempotent handling | S-2 | permanent, documented | explicit exception |
 | Excalidraw toolbar hidden with CSS, not an API | low (UX only) | version pin + visual test | S-4 | each Excalidraw upgrade | explicit exception |
 | Previews stored as base64 in Postgres | medium (size) | size cap; move to object storage | S-7 | S-7 | unverified |
-| `InMemoryAgentRunner` thread state | medium (UX) | decide hosting/runner (D-002) | S-7 | S-7 | open gap |
+| `InMemoryAgentRunner` thread state resets on Railway redeploy | low (UX, one user) | accepted for the personal-tool phase (A-010); persistent runner if the product opens up | S-7 | when the allowlist is removed | accepted |
+| `GET /api/health` unauthenticated | low | returns status only; no user data; on the inventory allow-list | S-1 | permanent | explicit exception |
 | Client-side tools could be invoked by a tampered page | low (user's own data only) | server still authorizes persistence; no server-side effects from tools | S-5 | — | accepted |
 
 ## Next bounded action
