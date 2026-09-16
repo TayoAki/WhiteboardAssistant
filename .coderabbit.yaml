@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "src/app/api/**"
+      instructions: >-
+        Every route handler must call requireUser() before any side effect unless it is on the
+        allow-list in tests/structure/entry-points.test.ts (health check, Clerk webhook). Flag any
+        client-provided user id, email, or project scope that is trusted without server-side
+        verification, and any handler that skips zod parsing of untrusted input.
+    - path: "src/server/**"
+      instructions: >-
+        Files must start with `import "server-only"`. No `any`. Database access only under
+        src/server/data with every query scoped by user_id; Clerk server SDK only under
+        src/server/auth; AI SDKs only under src/server/ai. Credits and rate limits must be enforced
+        here, never only in the browser. See docs/architecture/GUARDRAIL_MAP.md.
+    - path: "src/lib/**"
+      instructions: >-
+        Pure functions only (no network, database, or React). Diagram and wireframe spec code must
+        enforce the caps from docs/prds/0001-ai-whiteboard-mvp.md (FR-039).
+    - path: "docs/**"
+      instructions: >-
+        Check that requirement and acceptance IDs (FR-, NFR-, AC-, S-) stay consistent with
+        docs/prds/0001-ai-whiteboard-mvp.md.
