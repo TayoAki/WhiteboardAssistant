@@ -1,10 +1,11 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { checkRouteHandlers, startsWithServerOnly } from "./route-guards";
 
-// Structural guardrail (AC-009, NFR-001): every API route handler is either guarded by
-// requireUser() or is a documented exception. Exceptions are listed here AND marked at the
-// call site with a `guardrail-exception:` comment, so drift in either place fails the build.
+// Structural guardrail (AC-009, NFR-001): every API route handler runs requireUser() before
+// anything else, or the file is a documented exception. Exceptions are listed here AND marked
+// at the call site with a `guardrail-exception:` comment, so drift in either place fails CI.
 // See docs/architecture/GUARDRAIL_MAP.md (entry-point inventory, exceptions).
 
 const ROOT = process.cwd();
@@ -16,6 +17,7 @@ const ALLOW_LIST = new Set<string>([
   "src/app/api/webhooks/clerk/route.ts", // Svix-signed Clerk webhook (FR-004)
 ]);
 
+/** Recursively lists files under `dir`; returns [] when the directory does not exist. */
 function walk(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).flatMap((name) => {
@@ -24,7 +26,50 @@ function walk(dir: string): string[] {
   });
 }
 
+/** Repository-relative POSIX path, so allow-list entries match on every OS. */
 const rel = (file: string) => relative(ROOT, file).split("\\").join("/");
+
+describe("route-guard checker (fixtures)", () => {
+  it("accepts a handler whose first statement awaits requireUser()", () => {
+    const src = `import { requireUser } from "@/server/auth";
+export async function GET() { const user = await requireUser(); return Response.json({ id: user.id }); }`;
+    expect(checkRouteHandlers(src)).toEqual([{ handler: "GET", ok: true, reason: expect.any(String) }]);
+  });
+
+  it("accepts an exported arrow-function handler that starts with requireUser()", () => {
+    const src = `export const POST = async (req: Request) => { const user = await requireUser(); return new Response(null); };`;
+    expect(checkRouteHandlers(src)[0]).toMatchObject({ handler: "POST", ok: true });
+  });
+
+  it("rejects a side effect that runs before requireUser()", () => {
+    const src = `export async function POST() { await db.insert(rows); const user = await requireUser(); return ok(); }`;
+    expect(checkRouteHandlers(src)[0]).toMatchObject({ handler: "POST", ok: false });
+  });
+
+  it("rejects a handler that never calls requireUser()", () => {
+    const src = `export async function DELETE() { return Response.json({ ok: true }); }`;
+    expect(checkRouteHandlers(src)[0]).toMatchObject({ handler: "DELETE", ok: false });
+  });
+
+  it("rejects expression-bodied and wrapped handlers, which it cannot verify", () => {
+    expect(checkRouteHandlers(`export const GET = () => Response.json({});`)[0]).toMatchObject({ ok: false });
+    expect(checkRouteHandlers(`export const GET = withSomething(async () => {});`)[0]).toMatchObject({ ok: false });
+  });
+
+  it("checks every exported HTTP method and ignores non-handler exports", () => {
+    const src = `export const dynamic = "force-dynamic";
+export async function GET() { await requireUser(); }
+export async function PATCH() { doWork(); await requireUser(); }`;
+    expect(checkRouteHandlers(src).map((f) => [f.handler, f.ok])).toEqual([["GET", true], ["PATCH", false]]);
+  });
+
+  it("requires server-only at the start of the file, allowing leading comments only", () => {
+    expect(startsWithServerOnly(`import "server-only";\nexport const x = 1;`)).toBe(true);
+    expect(startsWithServerOnly(`// license\n/* notes */\nimport 'server-only'\n`)).toBe(true);
+    expect(startsWithServerOnly(`import { db } from "./db";\nimport "server-only";`)).toBe(false);
+    expect(startsWithServerOnly(`export const x = 1;`)).toBe(false);
+  });
+});
 
 describe("entry-point inventory: src/app/api/**/route.ts", () => {
   const routes = walk(API_DIR).filter((f) => /route\.tsx?$/.test(f));
@@ -33,7 +78,7 @@ describe("entry-point inventory: src/app/api/**/route.ts", () => {
     expect(routes.map(rel)).toContain("src/app/api/health/route.ts");
   });
 
-  it.each(routes.map((f) => [rel(f), f]))("%s is guarded or a documented exception", (relPath, abs) => {
+  it.each(routes.map((f) => [rel(f), f]))("%s runs requireUser() first or is a documented exception", (relPath, abs) => {
     const source = readFileSync(abs, "utf8");
     if (ALLOW_LIST.has(relPath)) {
       expect(source, `${relPath} is allow-listed and must carry a guardrail-exception comment`).toMatch(
@@ -41,9 +86,11 @@ describe("entry-point inventory: src/app/api/**/route.ts", () => {
       );
       return;
     }
-    expect(source, `${relPath} must call requireUser() from @/server/auth before any side effect`).toMatch(
-      /\brequireUser\(/,
-    );
+    const findings = checkRouteHandlers(source, relPath);
+    expect(findings.length, `${relPath} exports no HTTP handler`).toBeGreaterThan(0);
+    for (const f of findings) {
+      expect(f.ok, `${relPath} ${f.handler}: ${f.reason}`).toBe(true);
+    }
   });
 });
 
@@ -55,8 +102,8 @@ describe("server modules: src/server/**", () => {
       expect(files).toHaveLength(0);
     });
   } else {
-    it.each(files.map((f) => [rel(f), f]))("%s imports server-only", (_relPath, abs) => {
-      expect(readFileSync(abs, "utf8")).toMatch(/^import ["']server-only["'];?/m);
+    it.each(files.map((f) => [rel(f), f]))("%s starts with import \"server-only\"", (_relPath, abs) => {
+      expect(startsWithServerOnly(readFileSync(abs, "utf8"))).toBe(true);
     });
   }
 });

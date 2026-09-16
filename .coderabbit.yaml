@@ -9,6 +9,9 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+  tools:
+    biome:
+      enabled: false # ESLint is the linter; Biome cannot parse Tailwind 4 CSS directives
   path_instructions:
     - path: "src/app/api/**"
       instructions: >-

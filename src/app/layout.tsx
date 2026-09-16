@@ -8,6 +8,7 @@ export const metadata: Metadata = {
     "An AI whiteboard: an Excalidraw canvas with a CopilotKit agent that can see and edit the board.",
 };
 
+/** Root layout: global styles and the html/body shell for every route. */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">

@@ -94,7 +94,7 @@ Automated reviewer: CodeRabbit. Success signal: review posted for the current he
 - Never commit or force-push to the default branch; never plain `--force`; `--force-with-lease` only on your own task branch when required.
 - Never reuse another agent's worktree, branch, uncommitted changes, port, or database branch.
 - Never merge, deploy, change production state, install an external app, expand credentials, or run agents in unrestricted permission-bypass mode without explicit authorization.
-- Never commit `.env*` files or paste secrets into docs, logs, or evidence.
+- Never commit `.env*` files or paste secrets into docs, logs, or evidence. The one exception is `.env.example`: a committed template with placeholder values only (its `.gitignore` negation exists for this reason).
 
 ## Completion report
 
