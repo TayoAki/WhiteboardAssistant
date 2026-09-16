@@ -4,10 +4,10 @@ Operating contract for any agent (Claude Code, Codex, Cursor) or human working i
 
 ## Current state (2026-09-16)
 
-- Greenfield: no application code yet. Only planning documents exist.
-- No install, lint, typecheck, test, or build command exists yet. **Do not claim any command was run until S-1 replaces the "planned" list below with verified commands.**
+- S-1 (bootstrap) is implemented on this branch: Next.js 16.3.5 (App Router, `src/`, Turbopack), React 19.2, Tailwind 4, ESLint 9 flat config with the layer-import rules, vitest 5, Playwright 1.56.1, GitHub Actions CI, CodeRabbit config, `GET /api/health`. No auth, database, canvas, or AI code yet (S-2 onward).
+- shadcn was **not** initialized: the build sandbox blocks `ui.shadcn.com`. Run `npx shadcn@latest init -d` locally or at the start of S-3 before adding UI components.
 - PRD revision 2 is approved by the owner (2026-09-16): hosting on Railway, no billing, personal-tool phase with an owner allowlist. D-005 (retention) is still open but low impact.
-- The GitHub default branch is currently the first pushed branch; D-001 in the PRD asks the owner to create and protect `main`. **No slice may open a PR until `main` exists.**
+- `main` exists on GitHub (created 2026-09-16 from the planning commit) and slice PRs target it. The repository's *default* branch is still `claude/festive-fermi-r689ry` until the owner switches and protects `main` (D-001).
 
 ## Task contract
 
@@ -29,18 +29,17 @@ Operating contract for any agent (Claude Code, Codex, Cursor) or human working i
 8. **Review**: address CodeRabbit findings on the current head, at most 5 cycles; scores are advisory.
 9. **Handoff**: stop before merge and deployment.
 
-## Repository commands (planned, not yet real)
-
-S-1 must replace this block with observed commands. Until then these are targets:
+## Repository commands (verified 2026-09-16 on Node 22.22.2 / npm 10.9.7)
 
 - Install: `npm ci`
-- Lint: `npm run lint`
-- Typecheck: `npm run typecheck`
-- Unit tests: `npm run test` (vitest); focused: `npm run test -- <pattern>`
-- End-to-end: `npm run e2e` (Playwright)
-- Build: `npm run build`
-- Dev server: `npm run dev` on port 3000
-- DB: `npm run db:generate`, `npm run db:migrate`, `npm run db:studio`
+- Lint: `npm run lint` (`eslint .`)
+- Typecheck: `npm run typecheck` (`next typegen && tsc --noEmit`; generates `.next/types` and `next-env.d.ts` first, both gitignored)
+- Unit + structural tests: `npm run test` (`vitest run`); watch: `npm run test:watch`; focused: `npm run test -- <pattern>`
+- Build: `npm run build` (`next build`, Turbopack)
+- End-to-end: `npm run build && npm run e2e` (`playwright test` starts `next start` on port 3000 itself; Chromium is pre-installed in this sandbox at `/opt/pw-browsers`, CI runs `npx playwright install --with-deps chromium` first)
+- Dev server: `npm run dev` on port 3000 (`next dev` re-adds the Next.js agent-rules block at the end of this file; keep it committed)
+- DB scripts (`db:generate`, `db:migrate`, `db:studio`): not yet; S-2 adds them
+- CI (`.github/workflows/ci.yml`): lint → typecheck → test → build → client-bundle secret grep → e2e, on every PR and on pushes to `main`
 
 ## Architecture and invariants
 
@@ -95,7 +94,7 @@ Automated reviewer: CodeRabbit. Success signal: review posted for the current he
 - Never commit or force-push to the default branch; never plain `--force`; `--force-with-lease` only on your own task branch when required.
 - Never reuse another agent's worktree, branch, uncommitted changes, port, or database branch.
 - Never merge, deploy, change production state, install an external app, expand credentials, or run agents in unrestricted permission-bypass mode without explicit authorization.
-- Never commit `.env*` files or paste secrets into docs, logs, or evidence.
+- Never commit `.env*` files or paste secrets into docs, logs, or evidence. The one exception is `.env.example`: a committed template with placeholder values only (its `.gitignore` negation exists for this reason).
 
 ## Completion report
 
@@ -108,3 +107,13 @@ Return: PRD revision and approval state; branch or PR URL; what changed and why;
 - Product spec: `docs/prds/0001-ai-whiteboard-mvp.md`
 - Guardrail map: `docs/architecture/GUARDRAIL_MAP.md`
 - Build plan and verified stack facts: `PLAN.md`
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

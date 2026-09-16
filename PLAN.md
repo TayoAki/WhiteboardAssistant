@@ -324,7 +324,7 @@ Each slice = one branch, one PR, CodeRabbit review, human merge. Full requiremen
 
 | Slice | Branch | Scope | Exit criteria |
 |---|---|---|---|
-| S-1 | `feat/s1-bootstrap` | Scaffold (temp dir → move in), Tailwind/shadcn, TS strict, ESLint layer rules, vitest + Playwright skeleton, CI, `.coderabbit.yaml`, `.env.example`, real commands in `AGENTS.md`, inventory-test skeleton | CI green on a PR; `AGENTS.md` commands verified by running them |
+| S-1 | `claude/festive-fermi-r689ry` (harness branch) | Scaffold (temp dir → move in), Tailwind (shadcn deferred to S-3: `ui.shadcn.com` is blocked in the build sandbox), TS strict, ESLint layer rules, vitest + Playwright skeleton, CI, `.coderabbit.yaml`, `.env.example`, real commands in `AGENTS.md`, `GET /api/health`, entry-point inventory test | CI green on a PR; `AGENTS.md` commands verified by running them |
 | S-2 | `feat/s2-auth-db` | Clerk, owner allowlist in `requireUser()` (FR-005), schema + constraints + migrations, scoped repos, audit helper, Clerk webhook, route protection | AC-001, AC-002, AC-009, AC-022, AC-031 |
 | S-3 | `feat/s3-boards` | Create (atomic credits, idempotent), list, rename, archive/restore/delete, empty state, meter | AC-003–AC-008 |
 | S-4 | `feat/s4-canvas` | Excalidraw, load/save with caps, previews, toolbar, floating properties, export, inserts, theme | AC-010–AC-014 |
