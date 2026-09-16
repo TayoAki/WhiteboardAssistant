@@ -1,0 +1,14 @@
+interface:
+  display_name: Software Factory
+  short_description: Turn PRDs into evidence-backed delivery
+  default_prompt: Use $software-factory to rewrite this PRD into a factory-ready specification,
+    resolve material gaps, and prepare the approved work for evidence-backed delivery.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

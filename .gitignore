@@ -1,0 +1,22 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# environment
+.env
+.env.*
+!.env.example
+
+# factory workflow
+.artifacts/
+.worktrees/
+
+# tooling
+*.log
+.DS_Store
+playwright-report/
+test-results/

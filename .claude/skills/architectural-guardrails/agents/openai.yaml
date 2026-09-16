@@ -1,0 +1,14 @@
+interface:
+  display_name: Architectural Guardrails
+  short_description: Encode architecture as executable constraints
+  default_prompt: Use $architectural-guardrails to map this repository’s trust boundaries,
+    find bypasses, and design the smallest enforceable architecture.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true
